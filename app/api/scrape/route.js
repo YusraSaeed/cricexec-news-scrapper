@@ -2,7 +2,6 @@ import * as cheerio from "cheerio";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
-export const preferredRegion = "lhr1";
 
 const USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
