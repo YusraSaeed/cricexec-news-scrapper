@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-const MAX_SOURCES = 30;
+const MAX_SOURCES = 20;
 
 function cleanUrl(value) {
   const trimmed = value.trim().replace(/[)\]}>.,;]+$/, "");
