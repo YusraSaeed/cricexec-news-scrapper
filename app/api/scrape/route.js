@@ -104,6 +104,13 @@ const ORGANIZATION_BY_HOST = [
   ["rajasthanroyals.com", "Rajasthan Royals"],
   ["kkr.in", "KKR"],
   ["delhicapitals.in", "Delhi Capitals"],
+  ["milondon.co.uk", "MI London"],
+  ["southernbrave.com", "Southern Brave"],
+  ["trentbridge.co.uk/rockets/news","Trent Rockets"],
+  ["welshfire.com", "Welsh Fire"],
+  ["edgbaston.com/birmingham-phoenix/news", "Birmingham Phoenix"],
+  ["londonspirit.com/latest/news", "London Spirit"],
+  ["sunrisers.uk/news", "SunRisers Leed"]
 ];
 
 function cleanText(value) {
@@ -21878,6 +21885,2607 @@ async function scrapeRcbNews(
 }
 
 /* =========================================================
+   SOUTHERN BRAVE ADAPTER
+
+   Input:
+   https://www.southernbrave.com/news
+
+   The Southern Brave website exposes an official
+   paginated JSON endpoint:
+
+   /apiv3/listing
+     ?entities=119
+     &pgnum=1
+     &inum=12
+     &pgsize=10
+
+   The API provides:
+   - title
+   - detail_url
+   - published_date
+
+   No article-page requests are needed.
+========================================================= */
+
+function isSouthernBraveNewsUrl(
+  sourceUrl
+) {
+  try {
+    const url =
+      new URL(
+        sourceUrl
+      );
+
+    const host =
+      url.hostname
+        .toLowerCase()
+        .replace(
+          /^www\./,
+          ""
+        );
+
+    const path =
+      url.pathname
+        .replace(
+          /\/+$/,
+          ""
+        )
+        .toLowerCase();
+
+    return (
+      host ===
+        "southernbrave.com" &&
+      path ===
+        "/news"
+    );
+  } catch {
+    return false;
+  }
+}
+
+
+/*
+ * Southern Brave dates from the API look like:
+ *
+ * 2026-10-13T09:24:38.318Z
+ *
+ * The current shared parseDateText()
+ * already understands the YYYY-MM-DD
+ * portion, so reuse it.
+ */
+function parseSouthernBraveDate(
+  value
+) {
+  return parseDateText(
+    cleanText(
+      value
+    )
+  );
+}
+
+
+/*
+ * Convert:
+ *
+ * /news/example-story
+ *
+ * into:
+ *
+ * https://www.southernbrave.com/news/example-story
+ */
+function normalizeSouthernBraveArticleUrl(
+  value
+) {
+  const href =
+    cleanText(
+      value
+    );
+
+  if (!href) {
+    return "";
+  }
+
+  try {
+    const url =
+      new URL(
+        href,
+        "https://www.southernbrave.com"
+      );
+
+    const host =
+      url.hostname
+        .toLowerCase()
+        .replace(
+          /^www\./,
+          ""
+        );
+
+    if (
+      host !==
+      "southernbrave.com"
+    ) {
+      return "";
+    }
+
+    const path =
+      url.pathname
+        .replace(
+          /\/+$/,
+          ""
+        );
+
+    /*
+     * Only normal Southern Brave
+     * news articles.
+     */
+    if (
+      !path
+        .toLowerCase()
+        .startsWith(
+          "/news/"
+        )
+    ) {
+      return "";
+    }
+
+    url.hash =
+      "";
+
+    return url.toString();
+  } catch {
+    return "";
+  }
+}
+
+
+/*
+ * The API response contains the article
+ * objects inside nested arrays/objects.
+ *
+ * Instead of tying the adapter to one
+ * exact response wrapper, walk the JSON
+ * recursively and collect objects that
+ * look like article records.
+ */
+function collectSouthernBraveApiItems(
+  value,
+  output = []
+) {
+  if (!value) {
+    return output;
+  }
+
+
+  if (
+    Array.isArray(
+      value
+    )
+  ) {
+    for (
+      const item of
+      value
+    ) {
+      collectSouthernBraveApiItems(
+        item,
+        output
+      );
+    }
+
+    return output;
+  }
+
+
+  if (
+    typeof value !==
+      "object"
+  ) {
+    return output;
+  }
+
+
+  const detailUrl =
+    cleanText(
+      value.detail_url
+    );
+
+  const title =
+    cleanText(
+      value.title ||
+      value.asset_title
+    );
+
+  const publishedDate =
+    cleanText(
+      value.published_date ||
+      value.custom_published_date ||
+      ""
+    );
+
+
+  /*
+   * A real news item contains these
+   * three fields.
+   */
+  if (
+    detailUrl &&
+    title &&
+    publishedDate
+  ) {
+    output.push(
+      value
+    );
+  }
+
+
+  for (
+    const child of
+    Object.values(
+      value
+    )
+  ) {
+    if (
+      child &&
+      typeof child ===
+        "object"
+    ) {
+      collectSouthernBraveApiItems(
+        child,
+        output
+      );
+    }
+  }
+
+
+  return output;
+}
+
+
+/*
+ * Locate pagination information without
+ * depending on the exact wrapper shape.
+ */
+function findSouthernBraveTotalPages(
+  value
+) {
+  if (!value) {
+    return null;
+  }
+
+
+  if (
+    Array.isArray(
+      value
+    )
+  ) {
+    for (
+      const item of
+      value
+    ) {
+      const found =
+        findSouthernBraveTotalPages(
+          item
+        );
+
+      if (
+        found
+      ) {
+        return found;
+      }
+    }
+
+    return null;
+  }
+
+
+  if (
+    typeof value !==
+      "object"
+  ) {
+    return null;
+  }
+
+
+  const direct =
+    Number(
+      value.total_pages
+    );
+
+
+  if (
+    Number.isInteger(
+      direct
+    ) &&
+    direct > 0
+  ) {
+    return direct;
+  }
+
+
+  for (
+    const child of
+    Object.values(
+      value
+    )
+  ) {
+    if (
+      child &&
+      typeof child ===
+        "object"
+    ) {
+      const found =
+        findSouthernBraveTotalPages(
+          child
+        );
+
+      if (
+        found
+      ) {
+        return found;
+      }
+    }
+  }
+
+
+  return null;
+}
+
+
+/*
+ * Official Southern Brave listing API.
+ */
+async function fetchSouthernBraveApiPage(
+  pageNumber
+) {
+  const url =
+    new URL(
+      "https://www.southernbrave.com/apiv3/listing"
+    );
+
+
+  url.searchParams.set(
+    "entities",
+    "119"
+  );
+
+  url.searchParams.set(
+    "pgnum",
+    String(
+      pageNumber
+    )
+  );
+
+  url.searchParams.set(
+    "inum",
+    "12"
+  );
+
+  url.searchParams.set(
+    "pgsize",
+    "10"
+  );
+
+  url.searchParams.set(
+    "otherent",
+    ""
+  );
+
+  url.searchParams.set(
+    "exclent",
+    ""
+  );
+
+
+  const controller =
+    new AbortController();
+
+
+  const timeout =
+    setTimeout(
+      () =>
+        controller.abort(),
+      20000
+    );
+
+
+  try {
+    const response =
+      await fetch(
+        url.toString(),
+        {
+          method:
+            "GET",
+
+          headers: {
+            "User-Agent":
+              USER_AGENT,
+
+            Accept:
+              "application/json, text/plain, */*",
+
+            "Accept-Language":
+              "en-GB,en-US;q=0.9,en;q=0.8",
+
+            Referer:
+              "https://www.southernbrave.com/news",
+
+            "Cache-Control":
+              "no-cache",
+
+            Pragma:
+              "no-cache",
+          },
+
+          redirect:
+            "follow",
+
+          cache:
+            "no-store",
+
+          signal:
+            controller.signal,
+        }
+      );
+
+
+    if (
+      !response.ok
+    ) {
+      throw new Error(
+        `Southern Brave API returned HTTP ${response.status}.`
+      );
+    }
+
+
+    const data =
+      await response.json();
+
+
+    return {
+      data,
+
+      apiUrl:
+        url.toString(),
+    };
+  } catch (
+    error
+  ) {
+    if (
+      error?.name ===
+      "AbortError"
+    ) {
+      throw new Error(
+        "The Southern Brave news API took too long to respond."
+      );
+    }
+
+    throw error;
+  } finally {
+    clearTimeout(
+      timeout
+    );
+  }
+}
+
+
+/*
+ * Convert one Southern Brave API
+ * item into our normal result row.
+ */
+function southernBraveApiItemToRow(
+  item
+) {
+  if (
+    !item ||
+    typeof item !==
+      "object"
+  ) {
+    return null;
+  }
+
+
+  const title =
+    cleanHeadline(
+      item.title ||
+      item.asset_title ||
+      ""
+    );
+
+
+  const articleUrl =
+    normalizeSouthernBraveArticleUrl(
+      item.detail_url
+    );
+
+
+  /*
+   * published_date is preferred.
+   *
+   * created_date is only a final
+   * defensive fallback.
+   */
+  const articleDate =
+    parseSouthernBraveDate(
+      item.published_date ||
+      item.custom_published_date ||
+      item.created_date
+    );
+
+
+  if (
+    !title ||
+    title.length < 5 ||
+    !articleUrl ||
+    !articleDate
+  ) {
+    return null;
+  }
+
+
+  return createResultRow({
+    organizationName:
+      "Southern Brave",
+
+    date:
+      isoDate(
+        articleDate
+      ),
+
+    title,
+
+    url:
+      articleUrl,
+  });
+}
+
+
+/* =========================================================
+   HTML FALLBACK
+
+   Normally the API should be used.
+
+   The actual /news HTML also contains
+   exact dates such as:
+
+   Oct 13, 2026
+
+   So if the API ever fails, we can still
+   read the first listing page.
+========================================================= */
+
+function extractSouthernBraveHtmlPage(
+  html,
+  listingUrl,
+  sinceDate
+) {
+  const $ =
+    cheerio.load(
+      html
+    );
+
+
+  const selectedStart =
+    new Date(
+      `${sinceDate}T00:00:00.000Z`
+    );
+
+
+  const resultsByUrl =
+    new Map();
+
+
+  let cardsFound =
+    0;
+
+  let invalidCards =
+    0;
+
+
+  /*
+   * Each story appears inside an article
+   * and contains links such as:
+   *
+   * /news/rao-and-white-give...
+   */
+  $(
+    "article"
+  ).each(
+    (
+      _,
+      article
+    ) => {
+      const root =
+        $(article);
+
+
+      const headlineLink =
+        root
+          .find(
+            'a.article-link[href^="/news/"], a[href^="/news/"]'
+          )
+          .filter(
+            (
+              _,
+              link
+            ) =>
+              cleanText(
+                $(link)
+                  .find(
+                    "h1,h2,h3,h4"
+                  )
+                  .text()
+              ).length >
+                0 ||
+              cleanText(
+                $(link)
+                  .attr(
+                    "aria-label"
+                  )
+              ).length >
+                0
+          )
+          .first();
+
+
+      if (
+        !headlineLink.length
+      ) {
+        return;
+      }
+
+
+      const articleUrl =
+        normalizeSouthernBraveArticleUrl(
+          headlineLink.attr(
+            "href"
+          )
+        );
+
+
+      if (
+        !articleUrl
+      ) {
+        return;
+      }
+
+
+      cardsFound +=
+        1;
+
+
+      let title =
+        cleanHeadline(
+          headlineLink
+            .find(
+              "h1,h2,h3,h4"
+            )
+            .first()
+            .text()
+        );
+
+
+      if (
+        !title
+      ) {
+        title =
+          cleanHeadline(
+            headlineLink.attr(
+              "aria-label"
+            )
+          );
+      }
+
+
+      let articleDate =
+        null;
+
+
+      /*
+       * Dates are visible inside spans:
+       *
+       * Oct 13, 2026
+       * Aug 15, 2026
+       */
+      root
+        .find(
+          "span,time"
+        )
+        .each(
+          (
+            _,
+            node
+          ) => {
+            if (
+              articleDate
+            ) {
+              return;
+            }
+
+
+            const value =
+              cleanText(
+                $(node)
+                  .attr(
+                    "datetime"
+                  ) ||
+                $(node).text()
+              );
+
+
+            const parsed =
+              parseDateText(
+                value
+              );
+
+
+            if (
+              parsed
+            ) {
+              articleDate =
+                parsed;
+            }
+          }
+        );
+
+
+      if (
+        !title ||
+        title.length < 5 ||
+        !articleDate
+      ) {
+        invalidCards +=
+          1;
+
+        return;
+      }
+
+
+      if (
+        articleDate <
+        selectedStart
+      ) {
+        return;
+      }
+
+
+      const row =
+        createResultRow({
+          organizationName:
+            "Southern Brave",
+
+          date:
+            isoDate(
+              articleDate
+            ),
+
+          title,
+
+          url:
+            articleUrl,
+        });
+
+
+      const key =
+        articleUrlKey(
+          articleUrl,
+          listingUrl
+        );
+
+
+      if (
+        key
+      ) {
+        resultsByUrl.set(
+          key,
+          row
+        );
+      }
+    }
+  );
+
+
+  return {
+    results:
+      [
+        ...resultsByUrl.values(),
+      ],
+
+    cardsFound,
+
+    invalidCards,
+  };
+}
+
+
+/* =========================================================
+   SOUTHERN BRAVE MAIN SCRAPER
+========================================================= */
+
+async function scrapeSouthernBraveNews(
+  sourceUrl,
+  sinceDate
+) {
+  const selectedStart =
+    new Date(
+      `${sinceDate}T00:00:00.000Z`
+    );
+
+
+  const resultsByUrl =
+    new Map();
+
+
+  let pagesFetched =
+    0;
+
+  let apiItemsChecked =
+    0;
+
+  let invalidItems =
+    0;
+
+  let apiFailed =
+    false;
+
+  let totalPages =
+    null;
+
+
+  /*
+   * The attached Southern Brave page
+   * currently reports 4 API pages.
+   *
+   * Keep a higher safety cap in case
+   * the archive grows.
+   */
+  const absoluteMaxPages =
+    10;
+
+
+  try {
+    for (
+      let pageNumber = 1;
+      pageNumber <=
+      absoluteMaxPages;
+      pageNumber += 1
+    ) {
+      const {
+        data,
+      } =
+        await fetchSouthernBraveApiPage(
+          pageNumber
+        );
+
+
+      pagesFetched +=
+        1;
+
+
+      if (
+        pageNumber === 1
+      ) {
+        totalPages =
+          findSouthernBraveTotalPages(
+            data
+          );
+      }
+
+
+      const rawItems =
+        collectSouthernBraveApiItems(
+          data
+        );
+
+
+      /*
+       * API response can expose the same
+       * article through more than one nested
+       * representation. De-duplicate this
+       * individual page before processing it.
+       */
+      const pageItemsByUrl =
+        new Map();
+
+
+      for (
+        const item of
+        rawItems
+      ) {
+        const articleUrl =
+          normalizeSouthernBraveArticleUrl(
+            item.detail_url
+          );
+
+
+        if (
+          !articleUrl
+        ) {
+          continue;
+        }
+
+
+        const key =
+          articleUrlKey(
+            articleUrl,
+            sourceUrl
+          );
+
+
+        if (
+          !key
+        ) {
+          continue;
+        }
+
+
+        pageItemsByUrl.set(
+          key,
+          item
+        );
+      }
+
+
+      const pageItems =
+        [
+          ...pageItemsByUrl.values(),
+        ];
+
+
+      if (
+        pageItems.length ===
+        0
+      ) {
+        break;
+      }
+
+
+      let oldestDateOnPage =
+        null;
+
+
+      for (
+        const item of
+        pageItems
+      ) {
+        apiItemsChecked +=
+          1;
+
+
+        const row =
+          southernBraveApiItemToRow(
+            item
+          );
+
+
+        if (
+          !row
+        ) {
+          invalidItems +=
+            1;
+
+          continue;
+        }
+
+
+        const articleDate =
+          new Date(
+            `${row.date}T00:00:00.000Z`
+          );
+
+
+        if (
+          !oldestDateOnPage ||
+          articleDate <
+            oldestDateOnPage
+        ) {
+          oldestDateOnPage =
+            articleDate;
+        }
+
+
+        /*
+         * Selected date is inclusive.
+         */
+        if (
+          articleDate <
+          selectedStart
+        ) {
+          continue;
+        }
+
+
+        const key =
+          articleUrlKey(
+            row.url,
+            sourceUrl
+          );
+
+
+        if (
+          key
+        ) {
+          resultsByUrl.set(
+            key,
+            row
+          );
+        }
+      }
+
+
+      /*
+       * Southern Brave API is newest-first.
+       *
+       * Once the oldest item on the current
+       * page is older than the selected date,
+       * later pages cannot contain anything
+       * we need.
+       */
+      if (
+        oldestDateOnPage &&
+        oldestDateOnPage <
+          selectedStart
+      ) {
+        break;
+      }
+
+
+      /*
+       * Stop at the API-reported last page.
+       */
+      if (
+        totalPages &&
+        pageNumber >=
+          totalPages
+      ) {
+        break;
+      }
+    }
+  } catch (
+    error
+  ) {
+    apiFailed =
+      true;
+
+
+    console.log(
+      "[Southern Brave] API failed:",
+      error?.message ||
+        error
+    );
+  }
+
+
+  /*
+   * If the API did not return usable
+   * articles, fall back to the server-
+   * rendered /news HTML.
+   */
+  if (
+    apiFailed ||
+    apiItemsChecked ===
+      0
+  ) {
+    const {
+      html,
+      finalUrl,
+    } =
+      await fetchHtml(
+        sourceUrl
+      );
+
+
+    const fallback =
+      extractSouthernBraveHtmlPage(
+        html,
+        finalUrl,
+        sinceDate
+      );
+
+
+    for (
+      const row of
+      fallback.results
+    ) {
+      const key =
+        articleUrlKey(
+          row.url,
+          finalUrl
+        );
+
+
+      if (
+        key
+      ) {
+        resultsByUrl.set(
+          key,
+          row
+        );
+      }
+    }
+
+
+    const results =
+      [
+        ...resultsByUrl.values(),
+      ].sort(
+        (
+          a,
+          b
+        ) => {
+          const dateCompare =
+            b.date.localeCompare(
+              a.date
+            );
+
+
+          if (
+            dateCompare !==
+            0
+          ) {
+            return dateCompare;
+          }
+
+
+          return a.title.localeCompare(
+            b.title
+          );
+        }
+      );
+
+
+    return {
+      organizationName:
+        "Southern Brave",
+
+      sourceName:
+        "Southern Brave",
+
+      scannedCandidates:
+        fallback.cardsFound,
+
+      results,
+
+      warning:
+        results.length
+          ? "Southern Brave API was unavailable, so the initial news-page HTML was used."
+          : "Southern Brave news was loaded, but no articles were found on or after the selected date.",
+
+      diagnostics: {
+        adapter:
+          "southern-brave-html-fallback",
+
+        apiFailed,
+
+        articleCardsFound:
+          fallback.cardsFound,
+
+        invalidCards:
+          fallback.invalidCards,
+
+        articlesReturned:
+          results.length,
+      },
+    };
+  }
+
+
+  const results =
+    [
+      ...resultsByUrl.values(),
+    ].sort(
+      (
+        a,
+        b
+      ) => {
+        const dateCompare =
+          b.date.localeCompare(
+            a.date
+          );
+
+
+        if (
+          dateCompare !==
+          0
+        ) {
+          return dateCompare;
+        }
+
+
+        return a.title.localeCompare(
+          b.title
+        );
+      }
+    );
+
+
+  let warning =
+    "";
+
+
+  if (
+    apiItemsChecked ===
+      0
+  ) {
+    warning =
+      "The Southern Brave news API returned no articles.";
+  } else if (
+    results.length ===
+      0
+  ) {
+    warning =
+      "Southern Brave news was retrieved successfully, but no articles were on or after the selected date.";
+  } else if (
+    invalidItems >
+      0
+  ) {
+    warning =
+      `Returned ${results.length} Southern Brave article(s). ` +
+      `${invalidItems} API item(s) were skipped because required fields were missing.`;
+  }
+
+
+  return {
+    organizationName:
+      "Southern Brave",
+
+    sourceName:
+      "Southern Brave",
+
+    scannedCandidates:
+      apiItemsChecked,
+
+    results,
+
+    warning,
+
+    diagnostics: {
+      adapter:
+        "southern-brave-official-news-api",
+
+      apiEndpoint:
+        "/apiv3/listing",
+
+      pagesFetched,
+
+      totalPages,
+
+      apiItemsChecked,
+
+      invalidItems,
+
+      articlesReturned:
+        results.length,
+    },
+  };
+}
+
+/* =========================================================
+   WELSH FIRE ADAPTER
+
+   Input:
+   https://welshfire.com/news
+
+   Official endpoint used by the website:
+   /api/backend/web/news?type=welshfire
+========================================================= */
+
+function isWelshFireNewsUrl(
+  sourceUrl
+) {
+  try {
+    const url =
+      new URL(
+        sourceUrl
+      );
+
+    const host =
+      url.hostname
+        .toLowerCase()
+        .replace(
+          /^www\./,
+          ""
+        );
+
+    const path =
+      url.pathname
+        .replace(
+          /\/+$/,
+          ""
+        )
+        .toLowerCase();
+
+    return (
+      host ===
+        "welshfire.com" &&
+      path ===
+        "/news"
+    );
+  } catch {
+    return false;
+  }
+}
+
+
+/*
+ * API example:
+ *
+ * 2026-08-18T15:19:48.000Z
+ */
+function parseWelshFireApiDate(
+  value
+) {
+  const text =
+    cleanText(
+      value
+    );
+
+  if (!text) {
+    return null;
+  }
+
+  const match =
+    text.match(
+      /^(20\d{2})-(\d{2})-(\d{2})/
+    );
+
+  if (!match) {
+    return null;
+  }
+
+  return dateFromParts(
+    Number(
+      match[1]
+    ),
+
+    Number(
+      match[2]
+    ) - 1,
+
+    Number(
+      match[3]
+    )
+  );
+}
+
+
+/*
+ * API gives a slug such as:
+ *
+ * welsh-fire-records-2026
+ *
+ * Public article URL:
+ *
+ * https://welshfire.com/news/welsh-fire-records-2026
+ */
+function createWelshFireArticleUrl(
+  slug
+) {
+  const value =
+    cleanText(
+      slug
+    );
+
+  if (!value) {
+    return "";
+  }
+
+  try {
+    const url =
+      new URL(
+        `/news/${value}`,
+        "https://welshfire.com"
+      );
+
+    url.hash =
+      "";
+
+    return url.toString();
+  } catch {
+    return "";
+  }
+}
+
+
+/*
+ * This is the exact endpoint used
+ * by the Welsh Fire website.
+ */
+const WELSH_FIRE_API_ENDPOINT =
+  "https://welshfire.com/api/backend/web/news?type=welshfire";
+
+
+async function fetchWelshFireApiPage(
+  pageNumber = 1
+) {
+  const apiUrl =
+    new URL(
+      WELSH_FIRE_API_ENDPOINT
+    );
+
+  /*
+   * Page 1 works without an explicit
+   * page parameter.
+   *
+   * Additional pages:
+   *
+   * ?type=welshfire&page=2
+   */
+  if (
+    pageNumber > 1
+  ) {
+    apiUrl.searchParams.set(
+      "page",
+      String(
+        pageNumber
+      )
+    );
+  }
+
+
+  const controller =
+    new AbortController();
+
+
+  const timeout =
+    setTimeout(
+      () =>
+        controller.abort(),
+      20000
+    );
+
+
+  try {
+    const response =
+      await fetch(
+        apiUrl.toString(),
+        {
+          method:
+            "GET",
+
+          headers: {
+            Accept:
+              "application/json, text/plain, */*",
+
+            "User-Agent":
+              USER_AGENT,
+
+            Referer:
+              "https://welshfire.com/news",
+
+            "Accept-Language":
+              "en-GB,en-US;q=0.9,en;q=0.8",
+
+            "Cache-Control":
+              "no-cache",
+
+            Pragma:
+              "no-cache",
+          },
+
+          cache:
+            "no-store",
+
+          redirect:
+            "follow",
+
+          signal:
+            controller.signal,
+        }
+      );
+
+
+    if (
+      !response.ok
+    ) {
+      throw new Error(
+        `Welsh Fire API returned HTTP ${response.status}.`
+      );
+    }
+
+
+    const json =
+      await response.json();
+
+
+    if (
+      json?.status !==
+        true ||
+      !json?.data
+    ) {
+      throw new Error(
+        "Welsh Fire API returned an unexpected response."
+      );
+    }
+
+
+    /*
+     * Exact structure:
+     *
+     * data
+     *   -> blocks
+     *      -> block_type: news
+     *         -> blockData
+     *            -> data
+     */
+    const newsBlock =
+      Array.isArray(
+        json.data.blocks
+      )
+        ? json.data.blocks.find(
+            (block) =>
+              block?.block_type ===
+                "news" &&
+              Array.isArray(
+                block?.blockData?.data
+              )
+          )
+        : null;
+
+
+    if (
+      !newsBlock
+    ) {
+      throw new Error(
+        "Welsh Fire API response did not contain the news block."
+      );
+    }
+
+
+    const blockData =
+      newsBlock.blockData;
+
+
+    return {
+      apiUrl:
+        apiUrl.toString(),
+
+      items:
+        blockData.data,
+
+      page:
+        Number(
+          blockData.page
+        ) ||
+        pageNumber,
+
+      totalPages:
+        Number(
+          blockData.totalPages
+        ) ||
+        1,
+
+      totalDocs:
+        Number(
+          blockData.totalDocs
+        ) ||
+        blockData.data.length,
+
+      limit:
+        Number(
+          blockData.limit
+        ) ||
+        blockData.data.length,
+    };
+  } catch (
+    error
+  ) {
+    if (
+      error?.name ===
+      "AbortError"
+    ) {
+      throw new Error(
+        "Welsh Fire API request timed out."
+      );
+    }
+
+    throw error;
+  } finally {
+    clearTimeout(
+      timeout
+    );
+  }
+}
+
+
+/*
+ * Convert one Welsh Fire API item
+ * into the standard scraper row.
+ */
+function welshFireApiItemToRow(
+  item
+) {
+  if (
+    !item ||
+    typeof item !==
+      "object"
+  ) {
+    return null;
+  }
+
+
+  const title =
+    cleanHeadline(
+      item.title ||
+      ""
+    );
+
+
+  const articleDate =
+    parseWelshFireApiDate(
+      item.published_at
+    );
+
+
+  const articleUrl =
+    createWelshFireArticleUrl(
+      item.slug
+    );
+
+
+  if (
+    !title ||
+    title.length < 5 ||
+    !articleDate ||
+    !articleUrl
+  ) {
+    return null;
+  }
+
+
+  return createResultRow({
+    organizationName:
+      "Welsh Fire",
+
+    date:
+      isoDate(
+        articleDate
+      ),
+
+    title,
+
+    url:
+      articleUrl,
+  });
+}
+
+
+async function scrapeWelshFireNews(
+  sourceUrl,
+  sinceDate
+) {
+  const selectedStart =
+    new Date(
+      `${sinceDate}T00:00:00.000Z`
+    );
+
+
+  const resultsByUrl =
+    new Map();
+
+
+  let pagesFetched =
+    0;
+
+  let apiItemsChecked =
+    0;
+
+  let invalidItems =
+    0;
+
+  let totalPages =
+    0;
+
+  let totalDocs =
+    0;
+
+
+  /*
+   * Welsh Fire currently returns
+   * 10 articles per page and gives
+   * us totalPages in the response.
+   */
+  const maxPages =
+    10;
+
+
+  for (
+    let pageNumber = 1;
+    pageNumber <=
+    maxPages;
+    pageNumber += 1
+  ) {
+    const page =
+      await fetchWelshFireApiPage(
+        pageNumber
+      );
+
+
+    pagesFetched +=
+      1;
+
+
+    totalPages =
+      page.totalPages;
+
+
+    totalDocs =
+      page.totalDocs;
+
+
+    if (
+      !page.items.length
+    ) {
+      break;
+    }
+
+
+    let oldestDateOnPage =
+      null;
+
+
+    for (
+      const item of
+      page.items
+    ) {
+      apiItemsChecked +=
+        1;
+
+
+      const row =
+        welshFireApiItemToRow(
+          item
+        );
+
+
+      if (!row) {
+        invalidItems +=
+          1;
+
+        continue;
+      }
+
+
+      const articleDate =
+        new Date(
+          `${row.date}T00:00:00.000Z`
+        );
+
+
+      if (
+        !oldestDateOnPage ||
+        articleDate <
+          oldestDateOnPage
+      ) {
+        oldestDateOnPage =
+          articleDate;
+      }
+
+
+      /*
+       * Selected date is inclusive.
+       */
+      if (
+        articleDate <
+        selectedStart
+      ) {
+        continue;
+      }
+
+
+      const key =
+        articleUrlKey(
+          row.url,
+          sourceUrl
+        );
+
+
+      if (!key) {
+        invalidItems +=
+          1;
+
+        continue;
+      }
+
+
+      resultsByUrl.set(
+        key,
+        row
+      );
+    }
+
+
+    /*
+     * Welsh Fire results are
+     * newest first.
+     *
+     * Once the current page reaches
+     * articles older than the selected
+     * date, later pages are unnecessary.
+     */
+    if (
+      oldestDateOnPage &&
+      oldestDateOnPage <
+        selectedStart
+    ) {
+      break;
+    }
+
+
+    /*
+     * Reached final API page.
+     */
+    if (
+      totalPages &&
+      pageNumber >=
+        totalPages
+    ) {
+      break;
+    }
+  }
+
+
+  const results = [
+    ...resultsByUrl.values(),
+  ].sort(
+    (a, b) => {
+      const dateCompare =
+        b.date.localeCompare(
+          a.date
+        );
+
+
+      if (
+        dateCompare !== 0
+      ) {
+        return dateCompare;
+      }
+
+
+      return a.title.localeCompare(
+        b.title
+      );
+    }
+  );
+
+
+  let warning =
+    "";
+
+
+  if (
+    apiItemsChecked ===
+    0
+  ) {
+    warning =
+      "Welsh Fire API returned no news articles.";
+  } else if (
+    results.length ===
+    0
+  ) {
+    warning =
+      "Welsh Fire news was retrieved successfully, but no articles were on or after the selected date.";
+  } else if (
+    invalidItems >
+    0
+  ) {
+    warning =
+      `Returned ${results.length} Welsh Fire article(s). ` +
+      `${invalidItems} API item(s) were skipped because required information was missing.`;
+  }
+
+
+  return {
+    organizationName:
+      "Welsh Fire",
+
+    sourceName:
+      "Welsh Fire",
+
+    scannedCandidates:
+      apiItemsChecked,
+
+    results,
+
+    warning,
+
+    diagnostics: {
+      adapter:
+        "welsh-fire-official-api",
+
+      apiEndpoint:
+        WELSH_FIRE_API_ENDPOINT,
+
+      pagesFetched,
+
+      totalPages,
+
+      totalDocs,
+
+      apiItemsChecked,
+
+      invalidItems,
+
+      articlesReturned:
+        results.length,
+    },
+  };
+}
+
+/* =========================================================
+   LONDON SPIRIT ADAPTER
+
+   Input:
+   https://www.londonspirit.com/latest/news
+
+   Official API used by the website:
+   https://article-cms-api.incrowdsports.com/v2/articles
+========================================================= */
+
+function isLondonSpiritNewsUrl(
+  sourceUrl
+) {
+  try {
+    const url =
+      new URL(
+        sourceUrl
+      );
+
+    const host =
+      url.hostname
+        .toLowerCase()
+        .replace(
+          /^www\./,
+          ""
+        );
+
+    const path =
+      url.pathname
+        .replace(
+          /\/+$/,
+          ""
+        )
+        .toLowerCase();
+
+    return (
+      host ===
+        "londonspirit.com" &&
+      path ===
+        "/latest/news"
+    );
+  } catch {
+    return false;
+  }
+}
+
+
+/*
+ * API example:
+ *
+ * 2026-09-11T15:15:07.960Z
+ */
+function parseLondonSpiritApiDate(
+  value
+) {
+  const text =
+    cleanText(
+      value
+    );
+
+  if (!text) {
+    return null;
+  }
+
+  const match =
+    text.match(
+      /^(20\d{2})-(\d{2})-(\d{2})/
+    );
+
+  if (!match) {
+    return null;
+  }
+
+  return dateFromParts(
+    Number(
+      match[1]
+    ),
+
+    Number(
+      match[2]
+    ) - 1,
+
+    Number(
+      match[3]
+    )
+  );
+}
+
+
+/*
+ * Public article URL:
+ *
+ * https://www.londonspirit.com/content/{slug}
+ */
+function createLondonSpiritArticleUrl(
+  slug
+) {
+  const value =
+    cleanText(
+      slug
+    );
+
+  if (!value) {
+    return "";
+  }
+
+  try {
+    const url =
+      new URL(
+        `/content/${value}`,
+        "https://www.londonspirit.com"
+      );
+
+    url.hash =
+      "";
+
+    return url.toString();
+  } catch {
+    return "";
+  }
+}
+
+
+const LONDON_SPIRIT_API =
+  "https://article-cms-api.incrowdsports.com/v2/articles";
+
+
+async function fetchLondonSpiritApiPage(
+  pageNumber,
+  pageSize = 6
+) {
+  const apiUrl =
+    new URL(
+      LONDON_SPIRIT_API
+    );
+
+  apiUrl.searchParams.set(
+    "clientId",
+    "LONDONSPIRIT"
+  );
+
+  apiUrl.searchParams.set(
+    "size",
+    String(
+      pageSize
+    )
+  );
+
+  /*
+   * London Spirit API pagination
+   * is zero-based:
+   *
+   * page=0
+   * page=1
+   * page=2
+   */
+  apiUrl.searchParams.set(
+    "page",
+    String(
+      pageNumber
+    )
+  );
+
+  apiUrl.searchParams.set(
+    "categorySlug",
+    "articles-news"
+  );
+
+
+  const controller =
+    new AbortController();
+
+
+  const timeout =
+    setTimeout(
+      () =>
+        controller.abort(),
+      20000
+    );
+
+
+  try {
+    const response =
+      await fetch(
+        apiUrl.toString(),
+        {
+          method:
+            "GET",
+
+          headers: {
+            Accept:
+              "application/json, text/plain, */*",
+
+            "User-Agent":
+              USER_AGENT,
+
+            Referer:
+              "https://www.londonspirit.com/latest/news",
+
+            Origin:
+              "https://www.londonspirit.com",
+
+            "Accept-Language":
+              "en-GB,en-US;q=0.9,en;q=0.8",
+
+            "Cache-Control":
+              "no-cache",
+
+            Pragma:
+              "no-cache",
+          },
+
+          cache:
+            "no-store",
+
+          redirect:
+            "follow",
+
+          signal:
+            controller.signal,
+        }
+      );
+
+
+    if (
+      !response.ok
+    ) {
+      throw new Error(
+        `London Spirit API returned HTTP ${response.status}.`
+      );
+    }
+
+
+    const data =
+      await response.json();
+
+
+    if (
+      data?.status !==
+        "success" ||
+      !Array.isArray(
+        data?.data?.articles
+      )
+    ) {
+      throw new Error(
+        "London Spirit API returned an unexpected response format."
+      );
+    }
+
+
+    return {
+      apiUrl:
+        apiUrl.toString(),
+
+      articles:
+        data.data.articles,
+
+      pageNumber:
+        Number(
+          data?.metadata?.pageNumber
+        ) ||
+        pageNumber,
+
+      pageSize:
+        Number(
+          data?.metadata?.pageSize
+        ) ||
+        pageSize,
+
+      totalPages:
+        Number(
+          data?.metadata?.totalPages
+        ) ||
+        0,
+
+      totalItems:
+        Number(
+          data?.metadata?.totalItems
+        ) ||
+        0,
+    };
+  } catch (
+    error
+  ) {
+    if (
+      error?.name ===
+      "AbortError"
+    ) {
+      throw new Error(
+        "London Spirit API request timed out."
+      );
+    }
+
+    throw error;
+  } finally {
+    clearTimeout(
+      timeout
+    );
+  }
+}
+
+
+/*
+ * Convert one API item into
+ * the normal scraper row.
+ */
+function londonSpiritApiItemToRow(
+  item
+) {
+  if (
+    !item ||
+    typeof item !==
+      "object"
+  ) {
+    return null;
+  }
+
+
+  /*
+   * In the current API response the
+   * headline is stored in heroMedia.title.
+   *
+   * articleMetadata.title is kept as
+   * a fallback.
+   */
+  const title =
+    cleanHeadline(
+      item?.heroMedia?.title ||
+      item?.articleMetadata?.title ||
+      item?.title ||
+      ""
+    );
+
+
+  const articleDate =
+    parseLondonSpiritApiDate(
+      item?.publishDate
+    );
+
+
+  const articleUrl =
+    createLondonSpiritArticleUrl(
+      item?.slug
+    );
+
+
+  if (
+    !title ||
+    title.length < 5 ||
+    !articleDate ||
+    !articleUrl
+  ) {
+    return null;
+  }
+
+
+  return createResultRow({
+    organizationName:
+      "London Spirit",
+
+    date:
+      isoDate(
+        articleDate
+      ),
+
+    title,
+
+    url:
+      articleUrl,
+  });
+}
+
+
+async function scrapeLondonSpiritNews(
+  sourceUrl,
+  sinceDate
+) {
+  const selectedStart =
+    new Date(
+      `${sinceDate}T00:00:00.000Z`
+    );
+
+
+  const resultsByUrl =
+    new Map();
+
+
+  let pagesFetched =
+    0;
+
+  let apiItemsChecked =
+    0;
+
+  let invalidItems =
+    0;
+
+  let totalPages =
+    0;
+
+  let totalItems =
+    0;
+
+  let lastApiUrl =
+    "";
+
+
+  /*
+   * Website currently uses six
+   * articles per API page.
+   */
+  const pageSize =
+    6;
+
+
+  /*
+   * Safety limit.
+   *
+   * Normally this will stop after
+   * page 0 because your selected date
+   * is only a few days back.
+   */
+  const maxPages =
+    20;
+
+
+  /*
+   * API page numbers begin at zero.
+   */
+  for (
+    let pageNumber = 0;
+    pageNumber < maxPages;
+    pageNumber += 1
+  ) {
+    const page =
+      await fetchLondonSpiritApiPage(
+        pageNumber,
+        pageSize
+      );
+
+
+    pagesFetched +=
+      1;
+
+
+    lastApiUrl =
+      page.apiUrl;
+
+
+    totalPages =
+      page.totalPages;
+
+
+    totalItems =
+      page.totalItems;
+
+
+    if (
+      page.articles.length ===
+        0
+    ) {
+      break;
+    }
+
+
+    let oldestDateOnPage =
+      null;
+
+
+    for (
+      const item of
+      page.articles
+    ) {
+      apiItemsChecked +=
+        1;
+
+
+      /*
+       * Ignore blocked articles if the
+       * API ever returns one.
+       */
+      if (
+        item?.blocked ===
+        true
+      ) {
+        continue;
+      }
+
+
+      const row =
+        londonSpiritApiItemToRow(
+          item
+        );
+
+
+      if (!row) {
+        invalidItems +=
+          1;
+
+        continue;
+      }
+
+
+      const articleDate =
+        new Date(
+          `${row.date}T00:00:00.000Z`
+        );
+
+
+      if (
+        !oldestDateOnPage ||
+        articleDate <
+          oldestDateOnPage
+      ) {
+        oldestDateOnPage =
+          articleDate;
+      }
+
+
+      /*
+       * Selected date is inclusive.
+       */
+      if (
+        articleDate <
+        selectedStart
+      ) {
+        continue;
+      }
+
+
+      const key =
+        articleUrlKey(
+          row.url,
+          sourceUrl
+        );
+
+
+      if (!key) {
+        invalidItems +=
+          1;
+
+        continue;
+      }
+
+
+      resultsByUrl.set(
+        key,
+        row
+      );
+    }
+
+
+    /*
+     * API sorting is:
+     *
+     * -pinned,-publishDate
+     *
+     * Once the current page reaches
+     * dates before our selected date,
+     * later pages are unnecessary.
+     */
+    if (
+      oldestDateOnPage &&
+      oldestDateOnPage <
+        selectedStart
+    ) {
+      break;
+    }
+
+
+    /*
+     * Metadata totalPages is a count.
+     *
+     * Example:
+     *
+     * totalPages = 8
+     * valid page numbers = 0 through 7
+     */
+    if (
+      totalPages &&
+      pageNumber + 1 >=
+        totalPages
+    ) {
+      break;
+    }
+  }
+
+
+  const results = [
+    ...resultsByUrl.values(),
+  ].sort(
+    (a, b) => {
+      const dateCompare =
+        b.date.localeCompare(
+          a.date
+        );
+
+
+      if (
+        dateCompare !== 0
+      ) {
+        return dateCompare;
+      }
+
+
+      return a.title.localeCompare(
+        b.title
+      );
+    }
+  );
+
+
+  let warning =
+    "";
+
+
+  if (
+    apiItemsChecked ===
+      0
+  ) {
+    warning =
+      "London Spirit API returned no news articles.";
+  } else if (
+    results.length ===
+      0
+  ) {
+    warning =
+      "London Spirit news was retrieved successfully, but no articles were on or after the selected date.";
+  } else if (
+    invalidItems >
+      0
+  ) {
+    warning =
+      `Returned ${results.length} London Spirit article(s). ` +
+      `${invalidItems} API item(s) were skipped because required information was missing.`;
+  }
+
+
+  return {
+    organizationName:
+      "London Spirit",
+
+    sourceName:
+      "London Spirit",
+
+    scannedCandidates:
+      apiItemsChecked,
+
+    results,
+
+    warning,
+
+    diagnostics: {
+      adapter:
+        "london-spirit-official-article-api",
+
+      apiEndpoint:
+        LONDON_SPIRIT_API,
+
+      lastApiUrl,
+
+      pagesFetched,
+
+      totalPages,
+
+      totalItems,
+
+      apiItemsChecked,
+
+      invalidItems,
+
+      articlesReturned:
+        results.length,
+    },
+  };
+}
+/* =========================================================
    FETCH Adapter
 ========================================================= */
 
@@ -22831,6 +25439,36 @@ export async function POST(
         sourceUrl,
         sinceDate
       );
+    } else if (
+      isSouthernBraveNewsUrl(
+        sourceUrl
+      )
+    ) {
+      output =
+        await scrapeSouthernBraveNews(
+          sourceUrl,
+          sinceDate
+        );
+    } else if (
+        isWelshFireNewsUrl(
+          sourceUrl
+        )
+    ) {
+      output =
+        await scrapeWelshFireNews(
+          sourceUrl,
+          sinceDate
+      );
+    } else if (
+      isLondonSpiritNewsUrl(
+        sourceUrl
+      )
+    ) {
+      output =
+        await scrapeLondonSpiritNews(
+          sourceUrl,
+          sinceDate
+        );
     }
 
     /*
