@@ -1527,7 +1527,8 @@ export default function Home() {
                               target="_blank"
                               rel="noreferrer"
                             >
-                              Open
+                              {/* Open */}
+                              {row.articleUrl}
                               <span>
                                 ↗
                               </span>
