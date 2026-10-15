@@ -104,13 +104,16 @@ const ORGANIZATION_BY_HOST = [
   ["rajasthanroyals.com", "Rajasthan Royals"],
   ["kkr.in", "KKR"],
   ["delhicapitals.in", "Delhi Capitals"],
+  ["lucknowsupergiants.in/news", "Lucknow Super Giants"],
+  ["gujarattitansipl.com/news", "Gujarat Giant Titans"],
   ["milondon.co.uk", "MI London"],
   ["southernbrave.com", "Southern Brave"],
   ["trentbridge.co.uk/rockets/news","Trent Rockets"],
   ["welshfire.com", "Welsh Fire"],
   ["edgbaston.com/birmingham-phoenix/news", "Birmingham Phoenix"],
   ["londonspirit.com/latest/news", "London Spirit"],
-  ["sunrisers.uk/news", "SunRisers Leed"]
+  ["sunrisers.uk/news", "SunRisers Leed"],
+  ["seattleorcas.com/news", "Seattle Orcas"],
 ];
 
 function cleanText(value) {
@@ -24485,6 +24488,2530 @@ async function scrapeLondonSpiritNews(
     },
   };
 }
+
+/* =========================================================
+   LUCKNOW SUPER GIANTS ADAPTER
+
+   Input:
+   https://www.lucknowsupergiants.in/news
+
+   Important:
+   The exact publication date is stored in:
+   data-publish-date="2026-06-23T10:05:00"
+========================================================= */
+
+function isLucknowSuperGiantsNewsUrl(
+  sourceUrl
+) {
+  try {
+    const url =
+      new URL(
+        sourceUrl
+      );
+
+    const host =
+      url.hostname
+        .toLowerCase()
+        .replace(
+          /^www\./,
+          ""
+        );
+
+    const path =
+      url.pathname
+        .replace(
+          /\/+$/,
+          ""
+        )
+        .toLowerCase();
+
+    return (
+      host ===
+        "lucknowsupergiants.in" &&
+      path ===
+        "/news"
+    );
+  } catch {
+    return false;
+  }
+}
+
+
+/*
+ * Example:
+ *
+ * 2026-06-23T10:05:00
+ *
+ * We deliberately read only the
+ * YYYY-MM-DD portion.
+ */
+function parseLucknowSuperGiantsDate(
+  value
+) {
+  const text =
+    String(
+      value || ""
+    ).trim();
+
+
+  if (!text) {
+    return null;
+  }
+
+
+  const match =
+    text.match(
+      /^(20\d{2})-(\d{2})-(\d{2})/
+    );
+
+
+  if (!match) {
+    return null;
+  }
+
+
+  return dateFromParts(
+    Number(
+      match[1]
+    ),
+
+    Number(
+      match[2]
+    ) - 1,
+
+    Number(
+      match[3]
+    )
+  );
+}
+
+
+/*
+ * LSG currently outputs malformed
+ * absolute URLs like:
+ *
+ * https:/www.lucknowsupergiants.in/news/...
+ *
+ * Fix them before passing to URL().
+ */
+function normalizeLucknowSuperGiantsUrl(
+  rawUrl,
+  sourceUrl
+) {
+  let value =
+    String(
+      rawUrl || ""
+    )
+      .replace(
+        /&amp;/gi,
+        "&"
+      )
+      .trim();
+
+
+  if (!value) {
+    return "";
+  }
+
+
+  if (
+    /^https:\/[^/]/i.test(
+      value
+    )
+  ) {
+    value =
+      value.replace(
+        /^https:\//i,
+        "https://"
+      );
+  }
+
+
+  if (
+    /^http:\/[^/]/i.test(
+      value
+    )
+  ) {
+    value =
+      value.replace(
+        /^http:\//i,
+        "http://"
+      );
+  }
+
+
+  try {
+    const url =
+      new URL(
+        value,
+        sourceUrl
+      );
+
+
+    url.hash =
+      "";
+
+
+    return url.toString();
+  } catch {
+    return "";
+  }
+}
+
+
+function decodeLucknowSuperGiantsText(
+  value
+) {
+  return String(
+    value || ""
+  )
+    .replace(
+      /<[^>]*>/g,
+      " "
+    )
+    .replace(
+      /&amp;/gi,
+      "&"
+    )
+    .replace(
+      /&quot;/gi,
+      '"'
+    )
+    .replace(
+      /&#39;/gi,
+      "'"
+    )
+    .replace(
+      /&apos;/gi,
+      "'"
+    )
+    .replace(
+      /&nbsp;/gi,
+      " "
+    )
+    .replace(
+      /&#8211;/gi,
+      "–"
+    )
+    .replace(
+      /&#8212;/gi,
+      "—"
+    )
+    .replace(
+      /&#8216;/gi,
+      "‘"
+    )
+    .replace(
+      /&#8217;/gi,
+      "’"
+    )
+    .replace(
+      /\s+/g,
+      " "
+    )
+    .trim();
+}
+
+
+async function fetchLucknowSuperGiantsNewsPage(
+  sourceUrl
+) {
+  const controller =
+    new AbortController();
+
+
+  const timeout =
+    setTimeout(
+      () =>
+        controller.abort(),
+      20000
+    );
+
+
+  try {
+    const response =
+      await fetch(
+        sourceUrl,
+        {
+          method:
+            "GET",
+
+          headers: {
+            Accept:
+              "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+
+            "User-Agent":
+              USER_AGENT,
+
+            "Accept-Language":
+              "en-GB,en-US;q=0.9,en;q=0.8",
+
+            "Cache-Control":
+              "no-cache",
+
+            Pragma:
+              "no-cache",
+          },
+
+          cache:
+            "no-store",
+
+          redirect:
+            "follow",
+
+          signal:
+            controller.signal,
+        }
+      );
+
+
+    if (
+      !response.ok
+    ) {
+      throw new Error(
+        `Lucknow Super Giants returned HTTP ${response.status}.`
+      );
+    }
+
+
+    return await response.text();
+  } catch (
+    error
+  ) {
+    if (
+      error?.name ===
+      "AbortError"
+    ) {
+      throw new Error(
+        "Lucknow Super Giants request timed out."
+      );
+    }
+
+
+    throw error;
+  } finally {
+    clearTimeout(
+      timeout
+    );
+  }
+}
+
+
+/*
+ * Parse only real listing articles.
+ *
+ * This intentionally ignores the
+ * trending/header article copies because
+ * those have:
+ *
+ * data-publish-date=""
+ */
+function extractLucknowSuperGiantsArticles(
+  html,
+  sourceUrl
+) {
+  const rows =
+    [];
+
+
+  const articleRegex =
+    /<article\b([^>]*)>([\s\S]*?)<\/article>/gi;
+
+
+  let match;
+
+
+  while (
+    (
+      match =
+        articleRegex.exec(
+          html
+        )
+    )
+  ) {
+    const attributes =
+      match[1] ||
+      "";
+
+
+    const body =
+      match[2] ||
+      "";
+
+
+    /*
+     * Require the genuine article-list
+     * class.
+     */
+    if (
+      !/\barticle-item\b/i.test(
+        attributes
+      )
+    ) {
+      continue;
+    }
+
+
+    /*
+     * Require category=news.
+     *
+     * This prevents unrelated cards from
+     * being treated as news articles.
+     */
+    const categoryMatch =
+      attributes.match(
+        /\bcategory=["']([^"']*)["']/i
+      );
+
+
+    const category =
+      String(
+        categoryMatch?.[1] ||
+        ""
+      )
+        .trim()
+        .toLowerCase();
+
+
+    if (
+      category !==
+        "news"
+    ) {
+      continue;
+    }
+
+
+    /*
+     * Most important part:
+     *
+     * use ONLY data-publish-date.
+     */
+    const publishDateMatch =
+      attributes.match(
+        /\bdata-publish-date=["']([^"']+)["']/i
+      );
+
+
+    const publishDate =
+      publishDateMatch?.[1]
+        ?.trim() ||
+      "";
+
+
+    /*
+     * Header/trending copies have an
+     * empty publication date.
+     */
+    if (
+      !publishDate
+    ) {
+      continue;
+    }
+
+
+    const articleDate =
+      parseLucknowSuperGiantsDate(
+        publishDate
+      );
+
+
+    if (
+      !articleDate
+    ) {
+      continue;
+    }
+
+
+    /*
+     * Prefer asset-title from the
+     * article itself.
+     */
+    const assetTitleMatch =
+      attributes.match(
+        /\basset-title=["']([^"']+)["']/i
+      );
+
+
+    let title =
+      decodeLucknowSuperGiantsText(
+        assetTitleMatch?.[1] ||
+        ""
+      );
+
+
+    /*
+     * Fallback to visible article title.
+     */
+    if (
+      !title
+    ) {
+      const titleMatch =
+        body.match(
+          /<h[1-6]\b[^>]*class=["'][^"']*\barticle-title\b[^"']*["'][^>]*>([\s\S]*?)<\/h[1-6]>/i
+        );
+
+
+      title =
+        decodeLucknowSuperGiantsText(
+          titleMatch?.[1] ||
+          ""
+        );
+    }
+
+
+    if (
+      !title ||
+      title.length <
+        5
+    ) {
+      continue;
+    }
+
+
+    /*
+     * Find the /news/ URL inside
+     * this exact article card.
+     */
+    const hrefMatches =
+      [
+        ...body.matchAll(
+          /<a\b[^>]*href=["']([^"']+)["'][^>]*>/gi
+        ),
+      ];
+
+
+    let articleUrl =
+      "";
+
+
+    for (
+      const hrefMatch of
+      hrefMatches
+    ) {
+      const candidate =
+        normalizeLucknowSuperGiantsUrl(
+          hrefMatch[1],
+          sourceUrl
+        );
+
+
+      if (
+        !candidate
+      ) {
+        continue;
+      }
+
+
+      try {
+        const parsed =
+          new URL(
+            candidate
+          );
+
+
+        const host =
+          parsed.hostname
+            .toLowerCase()
+            .replace(
+              /^www\./,
+              ""
+            );
+
+
+        if (
+          host ===
+            "lucknowsupergiants.in" &&
+          parsed.pathname
+            .toLowerCase()
+            .startsWith(
+              "/news/"
+            )
+        ) {
+          articleUrl =
+            candidate;
+
+          break;
+        }
+      } catch {
+        // Ignore invalid candidate.
+      }
+    }
+
+
+    if (
+      !articleUrl
+    ) {
+      continue;
+    }
+
+
+    rows.push({
+      date:
+        articleDate,
+
+      title,
+
+      url:
+        articleUrl,
+
+      rawPublishDate:
+        publishDate,
+    });
+  }
+
+
+  return rows;
+}
+
+
+async function scrapeLucknowSuperGiantsNews(
+  sourceUrl,
+  sinceDate
+) {
+  const html =
+    await fetchLucknowSuperGiantsNewsPage(
+      sourceUrl
+    );
+
+
+  const selectedStart =
+    new Date(
+      `${sinceDate}T00:00:00.000Z`
+    );
+
+
+  const extracted =
+    extractLucknowSuperGiantsArticles(
+      html,
+      sourceUrl
+    );
+
+
+  const resultsByUrl =
+    new Map();
+
+
+  let olderThanSelected =
+    0;
+
+
+  for (
+    const item of
+    extracted
+  ) {
+    if (
+      item.date <
+      selectedStart
+    ) {
+      olderThanSelected +=
+        1;
+
+      continue;
+    }
+
+
+    const row =
+      createResultRow({
+        organizationName:
+          "Lucknow Super Giants",
+
+        date:
+          isoDate(
+            item.date
+          ),
+
+        title:
+          item.title,
+
+        url:
+          item.url,
+      });
+
+
+    const key =
+      articleUrlKey(
+        row.url,
+        sourceUrl
+      );
+
+
+    if (!key) {
+      continue;
+    }
+
+
+    resultsByUrl.set(
+      key,
+      row
+    );
+  }
+
+
+  const results =
+    [
+      ...resultsByUrl.values(),
+    ].sort(
+      (a, b) => {
+        const dateCompare =
+          b.date.localeCompare(
+            a.date
+          );
+
+
+        if (
+          dateCompare !==
+          0
+        ) {
+          return dateCompare;
+        }
+
+
+        return a.title.localeCompare(
+          b.title
+        );
+      }
+    );
+
+
+  let warning =
+    "";
+
+
+  if (
+    extracted.length ===
+      0
+  ) {
+    warning =
+      "Lucknow Super Giants page loaded, but no dated news listing articles were found.";
+  } else if (
+    results.length ===
+      0
+  ) {
+    warning =
+      "Lucknow Super Giants news was retrieved successfully, but no articles were on or after the selected date.";
+  }
+
+
+  return {
+    organizationName:
+      "Lucknow Super Giants",
+
+    sourceName:
+      "Lucknow Super Giants",
+
+    scannedCandidates:
+      extracted.length,
+
+    results,
+
+    warning,
+
+    diagnostics: {
+      adapter:
+        "lucknow-super-giants-html-publish-date",
+
+      page:
+        sourceUrl,
+
+      datedArticlesFound:
+        extracted.length,
+
+      olderThanSelected,
+
+      articlesReturned:
+        results.length,
+    },
+  };
+}
+
+/* =========================================================
+   GUJARAT TITANS ADAPTER
+
+   Input:
+   https://www.gujarattitansipl.com/news
+
+   Correct publication date is stored in:
+   data-publish-date="2026-10-13T14:20:00"
+========================================================= */
+
+function isGujaratTitansNewsUrl(
+  sourceUrl
+) {
+  try {
+    const url =
+      new URL(
+        sourceUrl
+      );
+
+    const host =
+      url.hostname
+        .toLowerCase()
+        .replace(
+          /^www\./,
+          ""
+        );
+
+    const path =
+      url.pathname
+        .replace(
+          /\/+$/,
+          ""
+        )
+        .toLowerCase();
+
+    return (
+      host ===
+        "gujarattitansipl.com" &&
+      path ===
+        "/news"
+    );
+  } catch {
+    return false;
+  }
+}
+
+
+/*
+ * Example:
+ *
+ * 2026-10-13T14:20:00
+ */
+function parseGujaratTitansDate(
+  value
+) {
+  const text =
+    String(
+      value || ""
+    ).trim();
+
+
+  if (!text) {
+    return null;
+  }
+
+
+  const match =
+    text.match(
+      /^(20\d{2})-(\d{2})-(\d{2})/
+    );
+
+
+  if (!match) {
+    return null;
+  }
+
+
+  return dateFromParts(
+    Number(
+      match[1]
+    ),
+
+    Number(
+      match[2]
+    ) - 1,
+
+    Number(
+      match[3]
+    )
+  );
+}
+
+
+/*
+ * Handles HTML entities in titles.
+ */
+function decodeGujaratTitansText(
+  value
+) {
+  return String(
+    value || ""
+  )
+    .replace(
+      /<[^>]*>/g,
+      " "
+    )
+    .replace(
+      /&amp;/gi,
+      "&"
+    )
+    .replace(
+      /&quot;/gi,
+      '"'
+    )
+    .replace(
+      /&#39;/gi,
+      "'"
+    )
+    .replace(
+      /&apos;/gi,
+      "'"
+    )
+    .replace(
+      /&nbsp;/gi,
+      " "
+    )
+    .replace(
+      /&#8211;/gi,
+      "–"
+    )
+    .replace(
+      /&#8212;/gi,
+      "—"
+    )
+    .replace(
+      /&#8216;/gi,
+      "‘"
+    )
+    .replace(
+      /&#8217;/gi,
+      "’"
+    )
+    .replace(
+      /\s+/g,
+      " "
+    )
+    .trim();
+}
+
+
+/*
+ * Normalize article URL.
+ */
+function normalizeGujaratTitansUrl(
+  rawUrl,
+  sourceUrl
+) {
+  let value =
+    String(
+      rawUrl || ""
+    )
+      .replace(
+        /&amp;/gi,
+        "&"
+      )
+      .trim();
+
+
+  if (!value) {
+    return "";
+  }
+
+
+  /*
+   * Also protects us in case the site
+   * ever outputs malformed absolute URLs.
+   */
+  if (
+    /^https:\/[^/]/i.test(
+      value
+    )
+  ) {
+    value =
+      value.replace(
+        /^https:\//i,
+        "https://"
+      );
+  }
+
+
+  if (
+    /^http:\/[^/]/i.test(
+      value
+    )
+  ) {
+    value =
+      value.replace(
+        /^http:\//i,
+        "http://"
+      );
+  }
+
+
+  try {
+    const url =
+      new URL(
+        value,
+        sourceUrl
+      );
+
+
+    url.hash =
+      "";
+
+
+    return url.toString();
+  } catch {
+    return "";
+  }
+}
+
+
+/*
+ * Fetch Gujarat Titans news HTML.
+ */
+async function fetchGujaratTitansNewsPage(
+  sourceUrl
+) {
+  const controller =
+    new AbortController();
+
+
+  const timeout =
+    setTimeout(
+      () =>
+        controller.abort(),
+      20000
+    );
+
+
+  try {
+    const response =
+      await fetch(
+        sourceUrl,
+        {
+          method:
+            "GET",
+
+          headers: {
+            Accept:
+              "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+
+            "User-Agent":
+              USER_AGENT,
+
+            "Accept-Language":
+              "en-GB,en-US;q=0.9,en;q=0.8",
+
+            "Cache-Control":
+              "no-cache",
+
+            Pragma:
+              "no-cache",
+          },
+
+          cache:
+            "no-store",
+
+          redirect:
+            "follow",
+
+          signal:
+            controller.signal,
+        }
+      );
+
+
+    if (
+      !response.ok
+    ) {
+      throw new Error(
+        `Gujarat Titans returned HTTP ${response.status}.`
+      );
+    }
+
+
+    return await response.text();
+  } catch (
+    error
+  ) {
+    if (
+      error?.name ===
+      "AbortError"
+    ) {
+      throw new Error(
+        "Gujarat Titans request timed out."
+      );
+    }
+
+
+    throw error;
+  } finally {
+    clearTimeout(
+      timeout
+    );
+  }
+}
+
+
+/*
+ * Parse genuine Gujarat Titans
+ * news listing cards.
+ *
+ * Header / promotional copies are
+ * automatically ignored because they
+ * do not have a valid data-publish-date.
+ */
+function extractGujaratTitansArticles(
+  html,
+  sourceUrl
+) {
+  const rows =
+    [];
+
+
+  const articleRegex =
+    /<article\b([^>]*)>([\s\S]*?)<\/article>/gi;
+
+
+  let match;
+
+
+  while (
+    (
+      match =
+        articleRegex.exec(
+          html
+        )
+    )
+  ) {
+    const attributes =
+      match[1] ||
+      "";
+
+
+    const body =
+      match[2] ||
+      "";
+
+
+    /*
+     * Only article cards.
+     */
+    if (
+      !/\barticle-item\b/i.test(
+        attributes
+      )
+    ) {
+      continue;
+    }
+
+
+    /*
+     * Read category safely.
+     */
+    const categoryMatch =
+      attributes.match(
+        /\bcategory=(["'])(.*?)\1/i
+      );
+
+
+    const category =
+      decodeGujaratTitansText(
+        categoryMatch?.[2] ||
+        ""
+      )
+        .toLowerCase();
+
+
+    if (
+      category !==
+        "news"
+    ) {
+      continue;
+    }
+
+
+    /*
+     * Most important field.
+     *
+     * Never guess the date.
+     */
+    const publishDateMatch =
+      attributes.match(
+        /\bdata-publish-date=(["'])(.*?)\1/i
+      );
+
+
+    const publishDate =
+      String(
+        publishDateMatch?.[2] ||
+        ""
+      ).trim();
+
+
+    if (
+      !publishDate
+    ) {
+      continue;
+    }
+
+
+    const articleDate =
+      parseGujaratTitansDate(
+        publishDate
+      );
+
+
+    if (
+      !articleDate
+    ) {
+      continue;
+    }
+
+
+    /*
+     * Prefer asset-title.
+     *
+     * Important:
+     * This regex supports apostrophes
+     * inside titles such as:
+     *
+     * Gill's India...
+     */
+    const assetTitleMatch =
+      attributes.match(
+        /\basset-title=(["'])(.*?)\1/i
+      );
+
+
+    let title =
+      decodeGujaratTitansText(
+        assetTitleMatch?.[2] ||
+        ""
+      );
+
+
+    /*
+     * Fallback to the visible headline.
+     */
+    if (
+      !title
+    ) {
+      const titleMatch =
+        body.match(
+          /<h[1-6]\b[^>]*class=(["'])[^"']*\barticle-title\b[^"']*\1[^>]*>([\s\S]*?)<\/h[1-6]>/i
+        );
+
+
+      title =
+        decodeGujaratTitansText(
+          titleMatch?.[2] ||
+          ""
+        );
+    }
+
+
+    if (
+      !title ||
+      title.length <
+        5
+    ) {
+      continue;
+    }
+
+
+    /*
+     * Find the genuine article URL
+     * inside this exact card.
+     */
+    const hrefMatches =
+      [
+        ...body.matchAll(
+          /<a\b[^>]*href=(["'])(.*?)\1[^>]*>/gi
+        ),
+      ];
+
+
+    let articleUrl =
+      "";
+
+
+    for (
+      const hrefMatch of
+      hrefMatches
+    ) {
+      const candidate =
+        normalizeGujaratTitansUrl(
+          hrefMatch[2],
+          sourceUrl
+        );
+
+
+      if (
+        !candidate
+      ) {
+        continue;
+      }
+
+
+      try {
+        const parsed =
+          new URL(
+            candidate
+          );
+
+
+        const host =
+          parsed.hostname
+            .toLowerCase()
+            .replace(
+              /^www\./,
+              ""
+            );
+
+
+        const path =
+          parsed.pathname
+            .toLowerCase();
+
+
+        if (
+          host ===
+            "gujarattitansipl.com" &&
+          path.startsWith(
+            "/news/"
+          )
+        ) {
+          articleUrl =
+            candidate;
+
+          break;
+        }
+      } catch {
+        // Ignore invalid candidate URL.
+      }
+    }
+
+
+    if (
+      !articleUrl
+    ) {
+      continue;
+    }
+
+
+    rows.push({
+      date:
+        articleDate,
+
+      title,
+
+      url:
+        articleUrl,
+
+      rawPublishDate:
+        publishDate,
+    });
+  }
+
+
+  return rows;
+}
+
+
+async function scrapeGujaratTitansNews(
+  sourceUrl,
+  sinceDate
+) {
+  const html =
+    await fetchGujaratTitansNewsPage(
+      sourceUrl
+    );
+
+
+  const selectedStart =
+    new Date(
+      `${sinceDate}T00:00:00.000Z`
+    );
+
+
+  const extracted =
+    extractGujaratTitansArticles(
+      html,
+      sourceUrl
+    );
+
+
+  const resultsByUrl =
+    new Map();
+
+
+  let olderThanSelected =
+    0;
+
+
+  for (
+    const item of
+    extracted
+  ) {
+    if (
+      item.date <
+      selectedStart
+    ) {
+      olderThanSelected +=
+        1;
+
+      continue;
+    }
+
+
+    const row =
+      createResultRow({
+        organizationName:
+          "Gujarat Titans",
+
+        date:
+          isoDate(
+            item.date
+          ),
+
+        title:
+          item.title,
+
+        url:
+          item.url,
+      });
+
+
+    const key =
+      articleUrlKey(
+        row.url,
+        sourceUrl
+      );
+
+
+    if (!key) {
+      continue;
+    }
+
+
+    resultsByUrl.set(
+      key,
+      row
+    );
+  }
+
+
+  const results =
+    [
+      ...resultsByUrl.values(),
+    ].sort(
+      (a, b) => {
+        const dateCompare =
+          b.date.localeCompare(
+            a.date
+          );
+
+
+        if (
+          dateCompare !==
+          0
+        ) {
+          return dateCompare;
+        }
+
+
+        return a.title.localeCompare(
+          b.title
+        );
+      }
+    );
+
+
+  let warning =
+    "";
+
+
+  if (
+    extracted.length ===
+      0
+  ) {
+    warning =
+      "Gujarat Titans page loaded, but no dated news listing articles were found.";
+  } else if (
+    results.length ===
+      0
+  ) {
+    warning =
+      "Gujarat Titans news was retrieved successfully, but no articles were on or after the selected date.";
+  }
+
+
+  return {
+    organizationName:
+      "Gujarat Titans",
+
+    sourceName:
+      "Gujarat Titans",
+
+    scannedCandidates:
+      extracted.length,
+
+    results,
+
+    warning,
+
+    diagnostics: {
+      adapter:
+        "gujarat-titans-html-publish-date",
+
+      page:
+        sourceUrl,
+
+      datedArticlesFound:
+        extracted.length,
+
+      olderThanSelected,
+
+      articlesReturned:
+        results.length,
+    },
+  };
+}
+
+/* =========================================================
+   MI LONDON ADAPTER
+
+   Input:
+   https://milondon.co.uk/news/
+
+   Important:
+   WordPress API dates are NOT trusted.
+
+   Correct public date comes from the HTML:
+   .nectar-post-grid-item .meta-date
+
+   MI London DNS is resolved through Google DNS-over-HTTPS.
+   This special networking is used ONLY by this adapter.
+========================================================= */
+
+function isMiLondonNewsUrl(
+  sourceUrl
+) {
+  try {
+    const url =
+      new URL(
+        sourceUrl
+      );
+
+    const host =
+      url.hostname
+        .toLowerCase()
+        .replace(
+          /^www\./,
+          ""
+        );
+
+    const path =
+      url.pathname
+        .replace(
+          /\/+$/,
+          ""
+        )
+        .toLowerCase();
+
+    return (
+      host ===
+        "milondon.co.uk" &&
+      path ===
+        "/news"
+    );
+  } catch {
+    return false;
+  }
+}
+
+
+/* =========================================================
+   DNS BYPASS
+
+   Normal DNS cannot resolve milondon.co.uk
+   in your environment.
+
+   We ask Google DNS for the IP, then connect
+   directly while keeping milondon.co.uk as
+   the HTTPS hostname/SNI.
+========================================================= */
+
+let miLondonIpv4Cache =
+  null;
+
+
+async function resolveMiLondonIpv4() {
+  if (
+    Array.isArray(
+      miLondonIpv4Cache
+    ) &&
+    miLondonIpv4Cache.length
+  ) {
+    return miLondonIpv4Cache;
+  }
+
+
+  const dnsUrl =
+    "https://dns.google/resolve?name=milondon.co.uk&type=A";
+
+
+  const controller =
+    new AbortController();
+
+
+  const timeout =
+    setTimeout(
+      () =>
+        controller.abort(),
+      10000
+    );
+
+
+  try {
+    const response =
+      await fetch(
+        dnsUrl,
+        {
+          method:
+            "GET",
+
+          headers: {
+            Accept:
+              "application/dns-json",
+
+            "User-Agent":
+              USER_AGENT,
+          },
+
+          cache:
+            "no-store",
+
+          signal:
+            controller.signal,
+        }
+      );
+
+
+    if (
+      !response.ok
+    ) {
+      throw new Error(
+        `MI London DNS lookup returned HTTP ${response.status}.`
+      );
+    }
+
+
+    const data =
+      await response.json();
+
+
+    const addresses =
+      (
+        Array.isArray(
+          data?.Answer
+        )
+          ? data.Answer
+          : []
+      )
+        .filter(
+          (item) =>
+            item?.type === 1
+        )
+        .map(
+          (item) =>
+            String(
+              item?.data ||
+              ""
+            ).trim()
+        )
+        .filter(
+          (ip) =>
+            /^\d{1,3}(?:\.\d{1,3}){3}$/.test(
+              ip
+            )
+        )
+        .filter(
+          (ip) =>
+            !isPrivateIpv4(
+              ip
+            )
+        );
+
+
+    if (
+      addresses.length ===
+      0
+    ) {
+      throw new Error(
+        "Google DNS returned no public IPv4 address for MI London."
+      );
+    }
+
+
+    miLondonIpv4Cache =
+      addresses;
+
+
+    return addresses;
+  } catch (
+    error
+  ) {
+    if (
+      error?.name ===
+      "AbortError"
+    ) {
+      throw new Error(
+        "MI London DNS lookup timed out."
+      );
+    }
+
+
+    throw error;
+  } finally {
+    clearTimeout(
+      timeout
+    );
+  }
+}
+
+
+/*
+ * Perform one HTTPS request using
+ * a supplied IP instead of system DNS.
+ */
+async function requestMiLondonWithIp(
+  targetUrl,
+  ip
+) {
+  const https =
+    await import(
+      "node:https"
+    );
+
+
+  const url =
+    new URL(
+      targetUrl
+    );
+
+
+  return new Promise(
+    (
+      resolve,
+      reject
+    ) => {
+      const request =
+        https.request(
+          {
+            protocol:
+              "https:",
+
+            hostname:
+              url.hostname,
+
+            port:
+              443,
+
+            path:
+              `${url.pathname}${url.search}`,
+
+            method:
+              "GET",
+
+            servername:
+              url.hostname,
+
+            /*
+             * This is the important part.
+             *
+             * Node never asks the computer
+             * to resolve milondon.co.uk.
+             */
+            lookup:
+              (
+                hostname,
+                options,
+                callback
+              ) => {
+                if (
+                  options &&
+                  typeof options ===
+                    "object" &&
+                  options.all
+                ) {
+                  callback(
+                    null,
+                    [
+                      {
+                        address:
+                          ip,
+
+                        family:
+                          4,
+                      },
+                    ]
+                  );
+
+                  return;
+                }
+
+
+                callback(
+                  null,
+                  ip,
+                  4
+                );
+              },
+
+            headers: {
+              Host:
+                url.hostname,
+
+              Accept:
+                "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+
+              "User-Agent":
+                USER_AGENT,
+
+              "Accept-Language":
+                "en-GB,en-US;q=0.9,en;q=0.8",
+
+              "Cache-Control":
+                "no-cache",
+
+              Pragma:
+                "no-cache",
+            },
+
+            timeout:
+              20000,
+          },
+
+          (response) => {
+            const chunks =
+              [];
+
+            let totalBytes =
+              0;
+
+
+            response.on(
+              "data",
+              (chunk) => {
+                totalBytes +=
+                  chunk.length;
+
+
+                /*
+                 * Protection against an
+                 * unexpectedly huge response.
+                 */
+                if (
+                  totalBytes >
+                  10 * 1024 * 1024
+                ) {
+                  request.destroy(
+                    new Error(
+                      "MI London response exceeded 10 MB."
+                    )
+                  );
+
+                  return;
+                }
+
+
+                chunks.push(
+                  chunk
+                );
+              }
+            );
+
+
+            response.on(
+              "end",
+              () => {
+                resolve({
+                  status:
+                    response.statusCode ||
+                    0,
+
+                  headers:
+                    response.headers,
+
+                  body:
+                    Buffer.concat(
+                      chunks
+                    ).toString(
+                      "utf8"
+                    ),
+                });
+              }
+            );
+          }
+        );
+
+
+      request.on(
+        "timeout",
+        () => {
+          request.destroy(
+            new Error(
+              "MI London request timed out."
+            )
+          );
+        }
+      );
+
+
+      request.on(
+        "error",
+        reject
+      );
+
+
+      request.end();
+    }
+  );
+}
+
+
+/*
+ * Fetch MI London HTML using the
+ * custom DNS resolution above.
+ *
+ * Other adapters never use this.
+ */
+async function fetchMiLondonHtml(
+  sourceUrl,
+  redirectCount = 0
+) {
+  if (
+    redirectCount > 3
+  ) {
+    throw new Error(
+      "MI London returned too many redirects."
+    );
+  }
+
+
+  const target =
+    new URL(
+      sourceUrl
+    );
+
+
+  const host =
+    target.hostname
+      .toLowerCase()
+      .replace(
+        /^www\./,
+        ""
+      );
+
+
+  if (
+    host !==
+    "milondon.co.uk"
+  ) {
+    throw new Error(
+      "MI London adapter refused an unexpected hostname."
+    );
+  }
+
+
+  const addresses =
+    await resolveMiLondonIpv4();
+
+
+  let lastError =
+    null;
+
+
+  for (
+    const ip of
+    addresses
+  ) {
+    try {
+      const response =
+        await requestMiLondonWithIp(
+          target.toString(),
+          ip
+        );
+
+
+      /*
+       * Follow redirects ourselves because
+       * https.request does not do this.
+       */
+      if (
+        response.status >= 300 &&
+        response.status < 400 &&
+        response.headers.location
+      ) {
+        const nextUrl =
+          new URL(
+            response.headers.location,
+            target
+          );
+
+
+        const nextHost =
+          nextUrl.hostname
+            .toLowerCase()
+            .replace(
+              /^www\./,
+              ""
+            );
+
+
+        if (
+          nextHost !==
+          "milondon.co.uk"
+        ) {
+          throw new Error(
+            "MI London redirected to an unexpected hostname."
+          );
+        }
+
+
+        return await fetchMiLondonHtml(
+          nextUrl.toString(),
+          redirectCount + 1
+        );
+      }
+
+
+      if (
+        response.status < 200 ||
+        response.status >= 300
+      ) {
+        throw new Error(
+          `MI London returned HTTP ${response.status}.`
+        );
+      }
+
+
+      if (
+        !response.body
+      ) {
+        throw new Error(
+          "MI London returned an empty response."
+        );
+      }
+
+
+      return response.body;
+    } catch (
+      error
+    ) {
+      lastError =
+        error;
+    }
+  }
+
+
+  throw (
+    lastError ||
+    new Error(
+      "Unable to connect to MI London."
+    )
+  );
+}
+
+
+/* =========================================================
+   HTML PARSER
+
+   We deliberately use the date displayed
+   on the article card.
+
+   Example:
+   September 14, 2026
+
+   We DO NOT use WordPress API dates.
+========================================================= */
+
+function extractMiLondonArticles(
+  html,
+  sourceUrl
+) {
+  const $ =
+    cheerio.load(
+      html
+    );
+
+
+  const articles =
+    [];
+
+
+  const grid =
+    $(
+      ".nectar-post-grid-wrap"
+    ).first();
+
+
+  grid
+    .find(
+      ".nectar-post-grid-item"
+    )
+    .each(
+      (
+        index,
+        element
+      ) => {
+        const card =
+          $(
+            element
+          );
+
+
+        /*
+         * Exact displayed public date.
+         */
+        const dateText =
+          cleanText(
+            card
+              .find(
+                ".meta-date"
+              )
+              .first()
+              .text()
+          );
+
+
+        const articleDate =
+          parseDateText(
+            dateText
+          );
+
+
+        if (
+          !articleDate
+        ) {
+          return;
+        }
+
+
+        /*
+         * Main article URL.
+         */
+        const rawUrl =
+          card
+            .find(
+              "a.nectar-post-grid-link[href]"
+            )
+            .first()
+            .attr(
+              "href"
+            );
+
+
+        if (
+          !rawUrl
+        ) {
+          return;
+        }
+
+
+        let articleUrl =
+          "";
+
+
+        try {
+          const url =
+            new URL(
+              rawUrl,
+              sourceUrl
+            );
+
+
+          const host =
+            url.hostname
+              .toLowerCase()
+              .replace(
+                /^www\./,
+                ""
+              );
+
+
+          const path =
+            url.pathname
+              .toLowerCase();
+
+
+          if (
+            host !==
+              "milondon.co.uk" ||
+            !path.startsWith(
+              "/news/"
+            ) ||
+            path.includes(
+              "/category/"
+            )
+          ) {
+            return;
+          }
+
+
+          url.hash =
+            "";
+
+
+          articleUrl =
+            url.toString();
+        } catch {
+          return;
+        }
+
+
+        /*
+         * Visible headline.
+         */
+        let title =
+          cleanHeadline(
+            card
+              .find(
+                ".post-heading"
+              )
+              .first()
+              .text()
+          );
+
+
+        /*
+         * Fallback to accessible title.
+         */
+        if (
+          !title
+        ) {
+          title =
+            cleanHeadline(
+              card
+                .find(
+                  ".screen-reader-text"
+                )
+                .first()
+                .text()
+            );
+        }
+
+
+        if (
+          !title ||
+          title.length < 5
+        ) {
+          return;
+        }
+
+
+        const category =
+          cleanText(
+            card
+              .find(
+                ".meta-category"
+              )
+              .first()
+              .text()
+          );
+
+
+        articles.push({
+          title,
+
+          url:
+            articleUrl,
+
+          date:
+            articleDate,
+
+          displayedDate:
+            dateText,
+
+          category,
+        });
+      }
+    );
+
+
+  const totalCount =
+    Number(
+      grid
+        .find(
+          ".all-filter"
+        )
+        .first()
+        .attr(
+          "data-total-count"
+        )
+    ) ||
+    Number(
+      $(
+        ".nectar-post-grid-filters .all-filter"
+      )
+        .first()
+        .attr(
+          "data-total-count"
+        )
+    ) ||
+    articles.length;
+
+
+  return {
+    articles,
+
+    totalCount,
+  };
+}
+
+
+/* =========================================================
+   MAIN SCRAPER
+========================================================= */
+
+async function scrapeMiLondonNews(
+  sourceUrl,
+  sinceDate
+) {
+  const html =
+    await fetchMiLondonHtml(
+      sourceUrl
+    );
+
+
+  const extracted =
+    extractMiLondonArticles(
+      html,
+      sourceUrl
+    );
+
+
+  const articles =
+    extracted.articles;
+
+
+  const selectedStart =
+    new Date(
+      `${sinceDate}T00:00:00.000Z`
+    );
+
+
+  const resultsByUrl =
+    new Map();
+
+
+  let olderThanSelected =
+    0;
+
+
+  let oldestLoadedDate =
+    null;
+
+
+  let newestLoadedDate =
+    null;
+
+
+  for (
+    const item of
+    articles
+  ) {
+    if (
+      !oldestLoadedDate ||
+      item.date <
+        oldestLoadedDate
+    ) {
+      oldestLoadedDate =
+        item.date;
+    }
+
+
+    if (
+      !newestLoadedDate ||
+      item.date >
+        newestLoadedDate
+    ) {
+      newestLoadedDate =
+        item.date;
+    }
+
+
+    if (
+      item.date <
+      selectedStart
+    ) {
+      olderThanSelected +=
+        1;
+
+      continue;
+    }
+
+
+    const row =
+      createResultRow({
+        organizationName:
+          "MI London",
+
+        date:
+          isoDate(
+            item.date
+          ),
+
+        title:
+          item.title,
+
+        url:
+          item.url,
+      });
+
+
+    const key =
+      articleUrlKey(
+        row.url,
+        sourceUrl
+      );
+
+
+    if (!key) {
+      continue;
+    }
+
+
+    resultsByUrl.set(
+      key,
+      row
+    );
+  }
+
+
+  /*
+   * Important:
+   *
+   * The website's underlying WordPress
+   * publication dates are wrong for some
+   * articles, so the HTML cards are not
+   * necessarily ordered by the displayed
+   * public date.
+   *
+   * Sort them ourselves.
+   */
+  const results =
+    [
+      ...resultsByUrl.values(),
+    ].sort(
+      (
+        a,
+        b
+      ) => {
+        const dateCompare =
+          b.date.localeCompare(
+            a.date
+          );
+
+
+        if (
+          dateCompare !==
+          0
+        ) {
+          return dateCompare;
+        }
+
+
+        return a.title.localeCompare(
+          b.title
+        );
+      }
+    );
+
+
+  let warning =
+    "";
+
+
+  if (
+    articles.length ===
+    0
+  ) {
+    warning =
+      "MI London page loaded, but no dated article cards were found.";
+  } else if (
+    results.length ===
+    0
+  ) {
+    warning =
+      "MI London was retrieved successfully, but no articles were on or after the selected date.";
+  }
+
+
+  /*
+   * Their HTML currently server-renders
+   * 12 cards and uses Load More for older
+   * content.
+   *
+   * If someone requests a date older than
+   * what is currently loaded, report this
+   * instead of silently pretending the
+   * scan was complete.
+   */
+  if (
+    extracted.totalCount >
+      articles.length &&
+    oldestLoadedDate &&
+    selectedStart <=
+      oldestLoadedDate
+  ) {
+    const paginationWarning =
+      `MI London has ${extracted.totalCount} total posts but only ${articles.length} are present in the initial HTML. Older Load More items were not scanned.`;
+
+
+    warning =
+      warning
+        ? `${warning} ${paginationWarning}`
+        : paginationWarning;
+  }
+
+
+  return {
+    organizationName:
+      "MI London",
+
+    sourceName:
+      "MI London",
+
+    scannedCandidates:
+      articles.length,
+
+    results,
+
+    warning,
+
+    diagnostics: {
+      adapter:
+        "mi-london-html-dns-bypass",
+
+      page:
+        sourceUrl,
+
+      dnsMethod:
+        "google-doh-custom-https",
+
+      displayedDateSource:
+        ".meta-date",
+
+      cardsFound:
+        articles.length,
+
+      totalPostsReported:
+        extracted.totalCount,
+
+      oldestLoadedDate:
+        oldestLoadedDate
+          ? isoDate(
+              oldestLoadedDate
+            )
+          : null,
+
+      newestLoadedDate:
+        newestLoadedDate
+          ? isoDate(
+              newestLoadedDate
+            )
+          : null,
+
+      olderThanSelected,
+
+      articlesReturned:
+        results.length,
+    },
+  };
+}
 /* =========================================================
    FETCH Adapter
 ========================================================= */
@@ -25466,6 +27993,36 @@ export async function POST(
     ) {
       output =
         await scrapeLondonSpiritNews(
+          sourceUrl,
+          sinceDate
+        );
+    } else if (
+      isLucknowSuperGiantsNewsUrl(
+        sourceUrl
+      )
+    ) {
+      output =
+        await scrapeLucknowSuperGiantsNews(
+          sourceUrl,
+          sinceDate
+        );
+    } else if (
+      isGujaratTitansNewsUrl(
+        sourceUrl
+      )
+    ) {
+      output =
+        await scrapeGujaratTitansNews(
+          sourceUrl,
+          sinceDate
+        );
+    } else if (
+      isMiLondonNewsUrl(
+        sourceUrl
+      )
+    ) {
+      output =
+        await scrapeMiLondonNews(
           sourceUrl,
           sinceDate
         );
